@@ -1,0 +1,1 @@
+Replace this with your app icon (PNG/ICNS/ICO). Electron Builder will use files in this folder.
