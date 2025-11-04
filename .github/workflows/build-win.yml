@@ -1,0 +1,89 @@
+name: Build Windows (Electron + R Portable)
+
+on:
+  push:
+    branches: [ perf-fix ]
+    paths:
+      - 'electron/**'
+      - 'app/**'
+      - 'package.json'
+      - ".github/workflows/**"
+
+  workflow_dispatch:  # allow manual runs
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+
+    env:
+      NODE_VERSION: "20"
+      R_VERSION: "4.4.1"            # change if you want another R version
+      R_OUTDIR: "${{ github.workspace }}\\r-portable"
+      ELECTRON_CACHE: "${{ github.workspace }}\\.electron-cache"
+      ELECTRON_BUILDER_CACHE: "${{ github.workspace }}\\.electron-builder-cache"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Cache Electron caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ELECTRON_CACHE }}
+            ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
+      - name: Ensure 7-Zip is available
+        shell: pwsh
+        run: |
+          $z = Get-Command 7z,7zz,7za -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $z) {
+            choco install 7zip -y
+          }
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Fetch R Portable from CRAN (extract installer)
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy -Scope Process Bypass -Force
+          # Force TLS 1.2 in case the runner defaults are lower
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          # Create a writable outdir (inside workspace)
+          New-Item -ItemType Directory -Force -Path "${{ env.R_OUTDIR }}" | Out-Null
+          # Get specific version (uses /old/<ver> on CRAN) and verifies checksum
+          .\scripts\get-r-portable.ps1 -Version "${{ env.R_VERSION }}" -OutDir "${{ env.R_OUTDIR }}" -VerifyChecksum -Verbose
+          # Sanity check expected path:
+          if (-not (Test-Path "${{ env.R_OUTDIR }}\R-Portable\App\R-Portable\bin\Rscript.exe")) {
+            Write-Error "Rscript.exe not found in expected location after extraction."
+          }
+
+      - name: Verify which Rscript will be used
+        run: node .\scripts\verify-rscript.js
+
+      - name: Build Windows installer (electron-builder)
+        # Uses the 'win' target configured in package.json ("nsis" by default)
+        run: npm run build:win
+        env:
+          # Electron cache hints (optional)
+          ELECTRON_CACHE: ${{ env.ELECTRON_CACHE }}
+          ELECTRON_BUILDER_CACHE: ${{ env.ELECTRON_BUILDER_CACHE }}
+          # Optional: set GH_TOKEN to publish to GitHub Releases (Draft) if you configured "publish"
+          # GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: dist/**
+          if-no-files-found: error

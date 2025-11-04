@@ -1,0 +1,64 @@
+{
+  "name": "shiny-electron-app",
+  "version": "1.0.0",
+  "description": "Package a Shiny app as a cross-platform desktop app using Electron.",
+  "main": "main.js",
+  "author": "You",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder -mwl",
+    "build:win": "electron-builder -w",
+    "build:mac": "electron-builder -m",
+    "build:linux": "electron-builder -l"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {},
+  "build": {
+    "appId": "com.example.shinyelectron",
+    "productName": "ShinyElectronApp",
+    "files": [
+      "!assets/**",
+      "**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "shiny-app",
+        "to": "shiny-app"
+      },
+      {
+        "from": "assets",
+        "to": "assets"
+      },
+      {
+        "from": "run_app.R",
+        "to": "run_app.R"
+      },
+      {
+        "from": "r-portable",
+        "to": "r-portable"
+      }
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "artifactName": "${productName}-${version}-mac.${ext}"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName}-${version}-win.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "artifactName": "${productName}-${version}-linux.${ext}"
+    }
+  }
+}
